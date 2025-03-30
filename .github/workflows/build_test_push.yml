@@ -1,8 +1,8 @@
 name: DockerHub/GHCR
 
 env:
-  IMAGE_NAME: itensor
-  repo-name: koki/itensor
+  IMAGE_NAME: wpgsar
+  repo-name: koki/wpgsar
 
 on:
   push:
