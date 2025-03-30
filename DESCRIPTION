@@ -1,0 +1,24 @@
+Package: wPGSAR
+Type: Package
+Title: Weighted Parametric Gene Set Analysis (wPGSA)
+Version: 0.99.0
+Authors@R: c(person("Koki", "Tsuyuzaki", email = "k.t.the-answer@hotmail.co.jp", role = c("aut", "cre")), person("Eiryo", "Kawakami", email = "eiryo.kawakami@chiba-u.jp", role = "aut"))
+Description: Weighted Parametric Gene Set Analysis (wPGSA) is a method for inferring the activity of transcription factors (TFs) by evaluating the expression variance of their target genes using weighted t-statistics. When group labels are provided, the package can also perform statistical tests to compare TF activity between groups.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 4.3.0)
+URL: https://github.com/rikenbit/iTensor
+RoxygenNote: 7.3.2
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports:
+	BiocFileCache,
+	tools,
+	dplyr,
+	Matrix
+VignetteBuilder: knitr
+Language: en-US

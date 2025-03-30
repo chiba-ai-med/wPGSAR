@@ -1,0 +1,12 @@
+.fuse*
+*/.fuse*
+*/*/.fuse*
+*/*/*/.fuse*
+*/*/*/*/.fuse*
+.Rproj.user
+.Rhistory
+.Rdata
+.httr-oauth
+.DS_Store
+.Ruserdata
+.quarto
