@@ -1,5 +1,5 @@
-[![DOI](https://zenodo.org/badge/402303422.svg)](https://zenodo.org/badge/latestdoi/402303422)
-![GitHub Actions](https://github.com/chiba-ai-med/wPGSA/actions/workflows/build_test_push.yml/badge.svg)
+[![DOI](https://zenodo.org/badge/955034285.svg)](https://doi.org/10.5281/zenodo.15108268)
+![GitHub Actions](https://github.com/chiba-ai-med/wPGSAR/actions/workflows/build_test_push.yml/badge.svg)
 
 # wPGSAR
 R package to perform Weighted Parametric Gene Set Analysis (wPGSA)
