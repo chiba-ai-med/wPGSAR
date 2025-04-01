@@ -31,3 +31,5 @@ dummy_network_data <- rbind(
 		TF_name="AATF_Blood_NALM-6_SRX2493169",
 		GeneName=GeneName2,
 		weight=1))
+
+dummy_GSE143371_count_sparse <- Matrix(dummy_GSE143371_count, sparse=TRUE)

@@ -21,16 +21,18 @@
 #' network_data <- retrieveNetworkData()
 #' res1 <- wPGSA(network_data, GSE143371_count)
 #' res2 <- wPGSA(network_data, GSE143371_count, GSE143371_group)
-#' @importFrom Matrix sparseMatrix rowSums
-#' @importFrom stats coef lm p.adjust var
+#' @importFrom Matrix sparseMatrix colMeans rowSums
+#' @importFrom stats coef lm p.adjust var setNames
 #' @importFrom utils setTxtProgressBar txtProgressBar
+#' @importFrom data.table as.data.table
+#' @importFrom methods is
 #' @export
 wPGSA <- function(network_data, expression_data, group=NULL){
 	# Argument Check
 	commonGeneName <- .checkwPGSA(network_data, expression_data)
 	# Background statistics
 	cat("(1/4) Background statistics are calculated.\n")
-	global_mean <- colMeans(expression_data)
+	global_mean <- .global_mean(expression_data)
 	global_var <- apply(expression_data, 2, var)
 	# Filtering
 	res.filter <- .filterwPGSA(
@@ -40,14 +42,14 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 	network_sparse <- .sparseMatrix(
 		res.filter$network_data, res.filter$TFs, commonGeneName)
 	total_sum <- rowSums(network_sparse)
-	target_mean <- .targetMeans(network_sparse,
+	target_mean <- .targetMean(network_sparse,
 			res.filter$expression_data, total_sum)
-	target_var <- .targetVars(network_sparse,
+	target_var <- .targetVar(network_sparse,
 			res.filter$expression_data, total_sum, target_mean)
 	# t-statistics
 	cat("(3/4) TF enrichment scores are calculated.\n")
-	tstat_se <- sqrt(t(global_var + t(target_var)) / total_sum)
-	tstat <- t(t(target_mean) - global_mean) / tstat_se
+	tstat_se <- .tstat_se(global_var, target_var, total_sum)
+	tstat <- .tstat(global_mean, target_mean, tstat_se)
 	# Statistical tests
 	res.tests <- .tests(tstat, group)
 	# Output
@@ -69,6 +71,14 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 	commonGeneName
 }
 
+.global_mean <- function(expression_data){
+	if("dgCMatrix" %in% is(expression_data)){
+		Matrix::colMeans(expression_data)
+	}else{
+		base::colMeans(expression_data)
+	}
+}
+
 .filterwPGSA <- function(network_data, expression_data, commonGeneName){
 	network_data <- network_data[
 		network_data$GeneName %in% commonGeneName, ]
@@ -80,23 +90,41 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 		expression_data=expression_data)
 }
 
-.sparseMatrix <- function(network_data, TFs, commonGeneName){
-	network_sparse <- sparseMatrix(
-		i = match(network_data$TF_name, TFs),
-		j = match(network_data$GeneName, commonGeneName),
-		x = network_data$weight,
-		dims = c(length(TFs), length(commonGeneName)),
-		dimnames = list(TFs, commonGeneName))	
+.sparseMatrix <- function(network_data, TFs, commonGeneName) {
+  dt <- as.data.table(network_data)
+  tf_index <- setNames(seq_along(TFs), TFs)
+  gene_index <- setNames(seq_along(commonGeneName), commonGeneName)
+  dt[, tf_idx := tf_index[TF_name]]
+  dt[, gene_idx := gene_index[GeneName]]
+  sparseMatrix(
+    i = dt$tf_idx,
+    j = dt$gene_idx,
+    x = dt$weight,
+    dims = c(length(TFs), length(commonGeneName)),
+    dimnames = list(TFs, commonGeneName)
+  )
 }
 
-.lmTestCore <- function(x, group){
-  df <- data.frame(val = x, group = group)
-  fit <- lm(val ~ 0 + group, data = df)
-  coef(summary(fit))
+.targetMean <- function(network_sparse, expression_data, total_sum){
+	(network_sparse %*% expression_data) / total_sum
 }
 
-.lmTest <- function(tstat, group){
-  .apply_pb(tstat, 1, function(x) .lmTestCore(x, group), simplify=FALSE)
+.targetVar <- function(network_sparse, expression_data, total_sum, target_mean){
+	(network_sparse %*% expression_data^2) / total_sum - target_mean^2
+}
+
+.tstat_se <- function(global_var, target_var, total_sum){
+	sqrt(Matrix::t(global_var + Matrix::t(target_var)) / total_sum)
+}
+
+.tstat <- function(global_mean, target_mean, tstat_se){
+	Matrix::t(Matrix::t(target_mean) - global_mean) / tstat_se
+}
+
+.extract_col <- function(tmp, i, group_levels){
+	out <- do.call(rbind, lapply(tmp, function(x){x[, i]}))
+	colnames(out) <- group_levels
+	out
 }
 
 .apply_pb <- function(X, MARGIN, FUN, ...)
@@ -120,10 +148,14 @@ wPGSA <- function(network_data, expression_data, group=NULL){
   res
 }
 
-.extract_col <- function(tmp, i, group_levels){
-	out <- do.call(rbind, lapply(tmp, function(x){x[, i]}))
-	colnames(out) <- group_levels
-	out
+.lmTestCore <- function(x, group){
+  df <- data.frame(val = x, group = group)
+  fit <- lm(val ~ 0 + group, data = df)
+  coef(summary(fit))
+}
+
+.lmTest <- function(tstat, group){
+  .apply_pb(tstat, 1, function(x) .lmTestCore(x, group), simplify=FALSE)
 }
 
 .tests <- function(tstat, group){
@@ -147,12 +179,4 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 	}
 	list(group_mean=group_mean, group_se=group_se,
 		group_t=group_t, pval=pval, fdr=fdr)
-}
-
-.targetMeans <- function(network_sparse, expression_data, total_sum){
-	as.matrix((network_sparse %*% expression_data) / total_sum)
-}
-
-.targetVars <- function(network_sparse, expression_data, total_sum, target_mean){
-	as.matrix((network_sparse %*% expression_data^2) / total_sum - target_mean^2)
 }
