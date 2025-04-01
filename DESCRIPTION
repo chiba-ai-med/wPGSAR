@@ -19,6 +19,7 @@ Imports:
 	BiocFileCache,
 	tools,
 	methods,
+	data.table,
 	dplyr,
 	Matrix
 VignetteBuilder: knitr
