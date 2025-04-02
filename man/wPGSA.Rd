@@ -4,14 +4,21 @@
 \alias{wPGSA}
 \title{Weighted Parametric Gene Set Analysis (wPGSA)}
 \usage{
-wPGSA(network_data, expression_data, group = NULL)
+wPGSA(
+  network_data,
+  expression_data,
+  group = NULL,
+  test.method = c("lm", "wilcox")
+)
 }
 \arguments{
 \item{network_data}{Output object of retrieveNetworkData()}
 
-\item{expression_data}{Gene expression matrix specified by user}
+\item{expression_data}{Gene expression matrix specified by user (R's standard matrix or sparse matrix defined by Matrix package can be specified)}
 
 \item{group}{Group label vector to perform statistical tests to compare TF activity between groups. (optional)}
+
+\item{test.method}{Test method to to perform statistical tests to compare TF activity between groups (Default: "t").}
 }
 \value{
 A list containing the result of wPGSA:

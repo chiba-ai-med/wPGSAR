@@ -5,7 +5,7 @@
 #' tools::R_user_dir("BiocFileCache", which = "cache")
 #' @param assembly Genome Assembly (hg19 or mm10)
 #' @param out.dir Output Directory (Default: tempdir())
-#' @returns A corresponding table between TF (SRX ID) and target gene (Gene Symbol) and TF metadata (SRX_ID, TF, celltype1, celltype2)
+#' @return A corresponding table between TF (SRX ID) and target gene (Gene Symbol) and TF metadata (SRX_ID, TF, celltype1, celltype2)
 #' @examples
 #' library("wPGSAR")
 #' network_data <- retrieveNetworkData()

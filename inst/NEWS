@@ -1,3 +1,13 @@
+VERSION 0.99.2
+------------------------
+   o test.method option is introduced in wPGSA()
+
+
+VERSION 0.99.1
+------------------------
+   o Sparse expression_data is acceptable in wPGSA()
+
+
 VERSION 0.99.1
 ------------------------
    o Sparse expression_data is acceptable in wPGSA()

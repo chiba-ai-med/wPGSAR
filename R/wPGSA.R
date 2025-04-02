@@ -2,9 +2,10 @@
 #'
 #' Weighted Parametric Gene Set Analysis (wPGSA) to infer the activity of transcription factors by evaluating the expression variance of their target genes using weighted t-statistics. When group labels are provided, the package can also perform statistical tests to compare transcription factor activity between groups.
 #' @param network_data Output object of retrieveNetworkData()
-#' @param expression_data Gene expression matrix specified by user
+#' @param expression_data Gene expression matrix specified by user (R's standard matrix or sparse matrix defined by Matrix package can be specified)
 #' @param group Group label vector to perform statistical tests to compare TF activity between groups. (optional)
-#' @returns A list containing the result of wPGSA:
+#' @param test.method Test method to to perform statistical tests to compare TF activity between groups (Default: "t").
+#' @return A list containing the result of wPGSA:
 #' \describe{
 #'   \item{tstat}{TF activity scores (t-statistics) computed from weighted expression and background.}
 #'   \item{tstat_se}{Standard error used in tstat calculation.}
@@ -22,14 +23,15 @@
 #' res1 <- wPGSA(network_data, GSE143371_count)
 #' res2 <- wPGSA(network_data, GSE143371_count, GSE143371_group)
 #' @importFrom Matrix sparseMatrix colMeans rowSums
-#' @importFrom stats coef lm p.adjust var setNames
+#' @importFrom stats coef lm p.adjust var setNames wilcox.test
 #' @importFrom utils setTxtProgressBar txtProgressBar
 #' @importFrom data.table as.data.table
 #' @importFrom methods is
 #' @export
-wPGSA <- function(network_data, expression_data, group=NULL){
+wPGSA <- function(network_data, expression_data, group=NULL, test.method=c("lm", "wilcox")){
 	# Argument Check
-	commonGeneName <- .checkwPGSA(network_data, expression_data)
+	test.method <- match.arg(test.method)
+	commonGeneName <- .checkwPGSA(network_data, expression_data, group)
 	# Background statistics
 	cat("(1/4) Background statistics are calculated.\n")
 	global_mean <- .global_mean(expression_data)
@@ -51,7 +53,7 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 	tstat_se <- .tstat_se(global_var, target_var, total_sum)
 	tstat <- .tstat(global_mean, target_mean, tstat_se)
 	# Statistical tests
-	res.tests <- .tests(tstat, group)
+	res.tests <- .tests(tstat, group, test.method)
 	# Output
 	list(tstat=tstat, tstat_se=tstat_se,
 		group_mean=res.tests$group_mean,
@@ -59,7 +61,12 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 		pval=res.tests$pval, fdr=res.tests$fdr)
 }
 
-.checkwPGSA <- function(network_data, expression_data){
+.checkwPGSA <- function(network_data, expression_data, group){
+	if(!is.null(group)){
+		if(ncol(expression_data) != length(group)){
+			stop("nrow(expression_data) and length(group) must be the same value!")
+		}
+	}
 	commonGeneName <- intersect(
 		unique(network_data$GeneName),
 		rownames(expression_data))
@@ -90,7 +97,12 @@ wPGSA <- function(network_data, expression_data, group=NULL){
 		expression_data=expression_data)
 }
 
-.sparseMatrix <- function(network_data, TFs, commonGeneName) {
+.sparseMatrix <- function(network_data, TFs, commonGeneName){
+	tf_idx <- NULL
+	TF_name <- NULL
+	gene_idx <- NULL
+	GeneName <- NULL
+	`:=` <- NULL
   dt <- as.data.table(network_data)
   tf_index <- setNames(seq_along(TFs), TFs)
   gene_index <- setNames(seq_along(commonGeneName), commonGeneName)
@@ -158,25 +170,52 @@ wPGSA <- function(network_data, expression_data, group=NULL){
   .apply_pb(tstat, 1, function(x) .lmTestCore(x, group), simplify=FALSE)
 }
 
-.tests <- function(tstat, group){
+.test.lmtest <- function(tstat, group, group_levels){
+	tmp <- .lmTest(tstat, group)
+	group_mean <- .extract_col(tmp, 1, group_levels)
+	group_se <- .extract_col(tmp, 2, group_levels)
+	group_t <- .extract_col(tmp, 3, group_levels)
+	pval <- .extract_col(tmp, 4, group_levels)
+	list(group_mean=group_mean, group_se=group_se, group_t=group_t, pval=pval)
+}
+
+.WilcoxonTest <- function(tstat, group, group_levels){
+  pval_list <- lapply(group_levels, function(g) {
+    group_mask <- group == g
+    .apply_pb(tstat, 1, function(x){
+      x1 <- x[group_mask]
+      x2 <- x[!group_mask]
+      if(length(unique(c(x1, x2))) <= 1) return(NA)
+      wilcox.test(x1, x2, exact = FALSE)$p.value
+    })
+  })
+  pval_mat <- do.call(cbind, pval_list)
+  colnames(pval_mat) <- group_levels
+  rownames(pval_mat) <- rownames(tstat)
+  pval_mat
+}
+
+.test.wilcox <- function(tstat, group, group_levels){
+	pval <- .WilcoxonTest(tstat, group, group_levels)
+	list(group_mean=NULL, group_se=NULL, group_t=NULL, pval=pval)
+}
+
+.test.method.list <- list(
+"lm" = .test.lmtest,
+"wilcox" = .test.wilcox
+)
+
+.tests <- function(tstat, group, test.method){
 	if(!is.null(group)){
 		cat("(4/4) Statistical tests between groups are performed.\n")
 		group <- as.factor(group)
 		group_levels <- levels(group)
-		tmp <- .lmTest(tstat, group)
-		group_mean <- .extract_col(tmp, 1, group_levels)
-		group_se <- .extract_col(tmp, 2, group_levels)
-		group_t <- .extract_col(tmp, 3, group_levels)
-		pval <- .extract_col(tmp, 4, group_levels)
-		fdr <- apply(pval, 2, p.adjust)
+		res.test <- .test.method.list[[test.method]](tstat, group, group_levels)
+		res.test$fdr <- apply(res.test$pval, 2, p.adjust)
 	}else{
 		cat("(4/4) Statistical tests between groups are skipped.\n")
-		group_mean <- NULL
-		group_se <- NULL
-		group_t <- NULL
-		pval <- NULL
-		fdr <- NULL
+		res.test <- list()
 	}
-	list(group_mean=group_mean, group_se=group_se,
-		group_t=group_t, pval=pval, fdr=fdr)
+	list(group_mean=res.test$group_mean, group_se=res.test$group_se,
+		group_t=res.test$group_t, pval=res.test$pval, fdr=res.test$fdr)
 }
